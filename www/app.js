@@ -4,13 +4,13 @@ var app = {};
 // 	apiEndpoint: "http://localhost:80801"
 // }
 app.api = {
-    addQuestion: function() {
+    addChat: function() {
 
     },
-    getQuestions: function() {
-
+    getChats: function() {
+    	$
     },
-    getQuestion: function(hash) {
+    getChat: function(hash) {
 
     }
 };
@@ -20,7 +20,7 @@ app.tools = {
 
     },
     _generateColor: function() {
-
+        // random number from 0 - 129
     },
     _generateIndentifier: function() {
 
