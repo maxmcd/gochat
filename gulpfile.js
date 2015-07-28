@@ -45,7 +45,7 @@ gulp.task('serve', ['move-files','sass', 'coffee', 'vendor'], function() {
     	}
   	});
 
-	gulp.watch(['app/*'], {cwd: 'app'}, reload);
+	gulp.watch(['app/*'], ['move-files', reload]);
 	gulp.watch('app/sass/*.sass', ['sass']);
     gulp.watch('app/coffee/*', ['coffee']);
     gulp.watch('app/js/*.js', ['vendor']);
