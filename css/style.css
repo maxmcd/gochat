@@ -1,3 +1,4 @@
+@charset "UTF-8";
 * {
   box-sizing: border-box; }
 
@@ -83,6 +84,19 @@ input[type=text] {
 .header {
   width: 180px;
   display: block; }
+  .header .back-arrow {
+    display: none; }
+  .header.back .avatar {
+    display: none; }
+  .header.back .back-arrow {
+    display: block; }
+    .header.back .back-arrow:after {
+      content: "<";
+      content: "❮";
+      content: "↩";
+      position: absolute;
+      left: 15px;
+      top: 18px; }
   .header .avatar {
     background: #402CA7; }
 
