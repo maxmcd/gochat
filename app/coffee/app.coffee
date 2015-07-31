@@ -51,34 +51,41 @@ class CH.Tools
 class CH.App
 
 	constructor: (@options) ->
+		@socket = new CH.Socket
 		@runRouter()
 		@setRandomAvatars()
-		window.socket = new CH.Socket
 		window.onpopstate = history.onpushstate = @runRouter
 		
-	setRandomAvatars: ->
+	setRandomAvatars: =>
 		colors = @colors
 		$('.avatar').each (index, el) =>
 			if not $(el).hasClass('logo')
 				color = CH.Tools.generateColor()
 				$(el).css({'background-color':color})			
 
-	runRouter: ->
+	runRouter: =>
 		location = document.location.hash
 		$('.canvas').html('')
 		$('.header').removeClass('back')
 		if location is ""
-			new CH.Questions(window.questions)
+			new CH.Questions({
+				socket: @socket
+			})
 		else
-			new CH.Chat(window.chat)
+			new CH.Chat({
+				socket: @socket	
+				location: location
+			})
 
 class CH.Questions
 
-	constructor: (questions) ->
+	constructor: (@options) ->
 		@initialRender()
-		# $('form').submit(@submit)
+		$('form').submit(@submit)
 		@input = $('input[type=text]')
 		@input.focus()
+		@getQuestions()
+		@options.socket.sock.onmessage = @onmessage
 
 	initialRender: =>
 		input = """
@@ -91,11 +98,59 @@ class CH.Questions
             </div>
 		"""
 		@content = input
-		@appendQuestions x for x in questions
 		$('.canvas').html(@content)		
 
-	appendQuestions: (obj) =>
-		@content += @createQuestion(obj)		
+	getQuestions: =>
+		$.ajax
+			url: 'http://localhost:8001/chats/'
+			dataType: 'json'
+			success: (questions) =>
+				@appendQuestion question for question in questions
+
+	appendQuestion: (obj) =>
+		$('.input').after(@createQuestion(obj))		
+
+	createQuestion: (question) =>
+		"""
+            <a href="##{question.key}" class="blob">
+                <div class="avatar"></div>
+                #{CH.Tools.escape question.question}
+            </a>            
+		"""
+
+	onmessage: (message) =>
+
+	submit: (e) =>
+		e.preventDefault()
+		q = @input.val()
+		@input.val('')
+		$.ajax
+			url: 'http://localhost:8001/chats/'
+			type: 'post'
+			data:
+				question: q
+				key: 'faq'
+			success: (data) =>
+				console.log(data)
+				window.location = "##{data}"
+
+
+class CH.Chat
+
+	constructor: (@options) ->
+		console.log(@options)
+		@getChat()
+		@initialRender()
+		$('form').submit(@submit)
+		@input = $('input[type=text]')
+		@input.focus()
+		@options.socket.sock.onmessage = @onmessage
+
+	addMessage: (obj) =>
+		$('.input').before(@createMessage(obj))
+
+	addQuestion: (obj) =>
+		$('.canvas').prepend(@createQuestion(obj))
 
 	createQuestion: (question) =>
 		"""
@@ -105,19 +160,23 @@ class CH.Questions
             </a>            
 		"""
 
-	submit: (e) =>
-		e.preventDefault()
-		q = @input.val()
-		@input.val('')
-		$('.input').after(@createQuestion({question: q}))
+	createMessage: (obj) =>
+		"""
+        	<div class="message">
+        		<div class="avatar"></div>
+        		#{CH.Tools.escape obj.body}
+        	</div>
+		"""
 
-class CH.Chat
-
-	constructor: (chat) ->
-		@initialRender()
-		$('form').submit(@submit)
-		@input = $('input[type=text]')
-		@input.focus()
+	getChat: () =>
+		location = @options.location.slice(1)
+		$.ajax
+			url: "http://localhost:8001/chat/#{location}/"
+			dataType: 'json'
+			success: (chat) =>
+				@addQuestion(chat)
+				if chat.messages
+					@addMessage(message) for message in chat.messages
 
 	initialRender: =>
 		@content = ""
@@ -129,37 +188,20 @@ class CH.Chat
                     <input type="submit" value="submit">                
                 </form>
             </div>
-		"""
+		"""	
 		$('.header').addClass('back')
-		@content += @createQuestion(chat.question)
-		@appendAnswers x for x in chat.answers
 		@content += input
 		$('.canvas').html(@content)
 
-	appendAnswers: (obj) =>
-		@content += @createAnswer(obj)
-
-	createQuestion: (question) =>
-		"""
-            <a href="#foo" class="blob">
-                <div class="avatar"></div>
-                #{CH.Tools.escape question.question}
-            </a>            
-		"""
-
-	createAnswer: (obj) =>
-		"""
-        	<div class="message">
-        		<div class="avatar"></div>
-        		#{obj.message}
-        	</div>
-		"""
+	onmessage: (message) =>
+		answer = @createAnswer({message: message.data})
+		$('.input').before(answer)
 
 	submit: (e) =>
 		e.preventDefault()
 		q = @input.val()
 		@input.val('')
-		$('.input').before(@createAnswer({message: q}))
+		@options.socket.sock.send(q)
 
 class CH.Socket
 
@@ -182,9 +224,5 @@ class CH.Socket
 	onclose: () =>
 		console.log('socket onclose')
 
-
-
 $ ->
 	new CH.App()
-
-

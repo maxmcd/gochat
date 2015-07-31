@@ -16,7 +16,7 @@
     <body>
 
 		<h1>Chat - Web Example</h1>
-		<form onSubmit='app.socket.sock.send(document.getElementById("input").value); return false;'>
+		<form onSubmit='socket.sock.send(document.getElementById("input").value); return false;'>
 		Input text: <input id="input" focus="true" />
 		<input type="submit" disabled="true" id="send" value="Send" />
 		</form>

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -17,21 +20,22 @@ import (
 )
 
 type Chat struct {
-	CreatedAt time.Time
-	Question  string
-	Messages  []Message
+	CreatedAt time.Time `json:"created_at"`
+	Question  string    `json:"question"`
+	Messages  []Message `json:"messages"`
 }
 
 type ChatMeta struct {
-	CreatedAt    time.Time
-	Question     string
-	MessageCount int
+	CreatedAt    time.Time `json:"created_at"`
+	Question     string    `json:"question"`
+	MessageCount int       `json:"message_count"`
+	Key          string    `json:"key"`
 }
 
 type Message struct {
-	Body      string
-	CreatedAt time.Time
-	Color     string
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	Color     string    `json:"color"`
 }
 
 var (
@@ -55,7 +59,7 @@ func main() {
 	// 	"hi": Chat{
 	// 		time.Now(), "this is a question", []Message{
 	// 			Message{
-	// 				"hi", time.Now(), 1,
+	// 				"hi", time.Now(), "Navy",
 	// 			},
 	// 		},
 	// 	},
@@ -64,14 +68,14 @@ func main() {
 	// go http.ListenAndServe(":8081")
 
 	r := mux.NewRouter()
-	r.HandleFunc("/chat/", GetChats).Methods("GET")
-	r.HandleFunc("/chat/", CreateChat).Methods("POST")
-	r.HandleFunc("/chat/{key}", GetChat).Methods("GET")
+	r.HandleFunc("/chats/", GetChats).Methods("GET")
+	r.HandleFunc("/chats/", CreateChat).Methods("POST")
+	r.HandleFunc("/chat/{key}/", GetChat).Methods("GET")
 
-	r.PathPrefix("/ws/").Handler(Middleware(handler))
-	r.PathPrefix("/").Handler(http.FileServer(http.Dir("www")))
-	http.Handle("/", r)
+	r.PathPrefix("/ws/").Handler(handler)
+	http.Handle("/", Middleware(r))
 	fmt.Println("Serving on port 8001")
+
 	go http.ListenAndServe(":8001", nil)
 
 	handleInterrupt()
@@ -112,7 +116,7 @@ func WriteDataToFile() error {
 func Middleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// temporary
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:8001")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		// w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		h.ServeHTTP(w, r)
@@ -120,13 +124,15 @@ func Middleware(h http.Handler) http.Handler {
 }
 
 func CreateChat(w http.ResponseWriter, req *http.Request) {
-	key := req.FormValue("key")
 	question := req.FormValue("question")
-	if key == "" || question == "" {
+	if question == "" {
 		w.WriteHeader(400)
 		w.Write([]byte("params not present"))
 		return
 	}
+	hash := sha1.New()
+	io.WriteString(hash, question)
+	key := hex.EncodeToString(hash.Sum(nil))[:7]
 	createdAt := time.Now()
 
 	chat := Chat{
@@ -136,7 +142,7 @@ func CreateChat(w http.ResponseWriter, req *http.Request) {
 	chatData[key] = chat
 
 	// don't overwrite?
-	w.Write([]byte("ok"))
+	w.Write([]byte(key))
 	return
 }
 
@@ -144,7 +150,7 @@ func GetChat(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	key := vars["key"]
 	chat := chatData[key]
-	if chat.Question == "" || key == "" {
+	if key == "" {
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte("404 not found"))
 		return
@@ -159,11 +165,12 @@ func GetChat(w http.ResponseWriter, req *http.Request) {
 
 func GetChats(w http.ResponseWriter, req *http.Request) {
 	output := []ChatMeta{}
-	for _, chat := range chatData {
+	for key, chat := range chatData {
 		noMessageChat := ChatMeta{
 			Question:     chat.Question,
 			CreatedAt:    chat.CreatedAt,
 			MessageCount: len(chat.Messages),
+			Key:          key,
 		}
 		output = append(output, noMessageChat)
 	}
@@ -188,6 +195,7 @@ func echoHandler(session sockjs.Session) {
 			case <-closedSession:
 				return
 			case msg := <-reader:
+				fmt.Println(msg)
 				if err := session.Send(msg.(string)); err != nil {
 					return
 				}
