@@ -11,40 +11,45 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/igm/pubsub"
-	"gopkg.in/igm/sockjs-go.v2/sockjs"
 )
 
 type Chat struct {
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt int64     `json:"created_at"`
 	Question  string    `json:"question"`
 	Messages  []Message `json:"messages"`
 }
 
 type ChatMeta struct {
-	CreatedAt    time.Time `json:"created_at"`
-	Question     string    `json:"question"`
-	MessageCount int       `json:"message_count"`
-	Key          string    `json:"key"`
+	CreatedAt    int64  `json:"created_at"`
+	Question     string `json:"question"`
+	MessageCount int    `json:"message_count"`
+	Key          string `json:"key"`
 }
 
 type Message struct {
-	Body      string    `json:"body"`
-	CreatedAt time.Time `json:"created_at"`
-	Color     string    `json:"color"`
+	Body      string `json:"body"`
+	CreatedAt int64  `json:"created_at"`
+	Color     string `json:"color"`
+}
+
+type Listener struct {
+	ListeningTo string
+	Channel     chan Message
 }
 
 var (
-	colors   []string
-	chatData map[string]Chat
+	GColors    []string
+	GChatData  map[string]Chat
+	GListeners map[int64]Listener
 )
 
-func init() {
-	// colors = []string("Black", "Navy", "DarkBlue", "MediumBlue", "Blue", "DarkGreen", "Green", "Teal", "DarkCyan", "DeepSkyBlue", "DarkTurquoise", "MediumSpringGreen", "Lime", "SpringGreen", "Aqua", "Cyan", "MidnightBlue", "DodgerBlue", "LightSeaGreen", "ForestGreen", "SeaGreen", "DarkSlateGray", "LimeGreen", "MediumSeaGreen", "Turquoise", "RoyalBlue", "SteelBlue", "DarkSlateBlue", "MediumTurquoise", "Indigo", "DarkOliveGreen", "CadetBlue", "CornflowerBlue", "RebeccaPurple", "MediumAquaMarine", "DimGray", "SlateBlue", "OliveDrab", "SlateGray", "LightSlateGray", "MediumSlateBlue", "LawnGreen", "Chartreuse", "Aquamarine", "Maroon", "Purple", "Olive", "Gray", "SkyBlue", "LightSkyBlue", "BlueViolet", "DarkRed", "DarkMagenta", "SaddleBrown", "DarkSeaGreen", "LightGreen", "MediumPurple", "DarkViolet", "PaleGreen", "DarkOrchid", "YellowGreen", "Sienna", "Brown", "DarkGray", "LightBlue", "GreenYellow", "PaleTurquoise", "LightSteelBlue", "PowderBlue", "FireBrick", "DarkGoldenRod", "MediumOrchid", "RosyBrown", "DarkKhaki", "Silver", "MediumVioletRed", "IndianRed", "Peru", "Chocolate", "Tan", "LightGray", "Thistle", "Orchid", "GoldenRod", "PaleVioletRed", "Crimson", "Gainsboro", "Plum", "BurlyWood", "LightCyan", "Lavender", "DarkSalmon", "Violet", "PaleGoldenRod", "LightCoral", "Khaki", "AliceBlue", "HoneyDew", "Azure", "SandyBrown", "Wheat", "Beige", "WhiteSmoke", "MintCream", "GhostWhite", "Salmon", "AntiqueWhite", "Linen", "LightGoldenRodYellow", "OldLace", "Red", "Fuchsia", "Magenta", "DeepPink", "OrangeRed", "Tomato", "HotPink", "Coral", "DarkOrange", "LightSalmon", "Orange", "LightPink", "Pink", "Gold", "PeachPuff", "NavajoWhite", "Moccasin", "Bisque", "MistyRose", "BlanchedAlmond", "PapayaWhip", "LavenderBlush", "SeaShell", "Cornsilk", "LemonChiffon", "FloralWhite", "Snow", "Yellow", "LightYellow", "Ivory", "White")
+func GetMilliTime(time time.Time) int64 {
+	return time.UnixNano() / 1000000
 }
 
 func main() {
@@ -53,9 +58,10 @@ func main() {
 		fmt.Println("error loading from file: %s", err)
 		return
 	}
+	GListeners = make(map[int64]Listener)
 	fmt.Println("Data loaded from file")
 
-	// chatData = map[string]Chat{
+	// GChatData = map[string]Chat{
 	// 	"hi": Chat{
 	// 		time.Now(), "this is a question", []Message{
 	// 			Message{
@@ -63,16 +69,15 @@ func main() {
 	// 			},
 	// 		},
 	// 	},
-	// }
-	handler := sockjs.NewHandler("/echo", sockjs.DefaultOptions, echoHandler)
-	// go http.ListenAndServe(":8081")
+	// }	// go http.ListenAndServe(":8081")
 
 	r := mux.NewRouter()
 	r.HandleFunc("/chats/", GetChats).Methods("GET")
 	r.HandleFunc("/chats/", CreateChat).Methods("POST")
 	r.HandleFunc("/chat/{key}/", GetChat).Methods("GET")
+	r.HandleFunc("/chat/{key}/", CreateMessage).Methods("POST")
+	r.HandleFunc("/listen/{key}/", ChatListen)
 
-	r.PathPrefix("/ws/").Handler(handler)
 	http.Handle("/", Middleware(r))
 	fmt.Println("Serving on port 8001")
 
@@ -88,7 +93,10 @@ func handleInterrupt() {
 	log.Println(<-ch)
 	err := WriteDataToFile()
 	if err != nil {
+		fmt.Println(err)
 		fmt.Println("how do we handle this?")
+	} else {
+		fmt.Println("Data successfully saved to file")
 	}
 }
 
@@ -97,7 +105,7 @@ func LoadDataFromFile() error {
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(data, &chatData)
+	err = json.Unmarshal(data, &GChatData)
 	if err != nil {
 		return err
 	}
@@ -105,7 +113,7 @@ func LoadDataFromFile() error {
 }
 
 func WriteDataToFile() error {
-	jsonBytes, err := json.Marshal(chatData)
+	jsonBytes, err := json.Marshal(GChatData)
 	if err != nil {
 		return err
 	}
@@ -116,6 +124,7 @@ func WriteDataToFile() error {
 func Middleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// temporary
+		fmt.Println(r.URL.String())
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		// w.Header().Set("Access-Control-Allow-Credentials", "true")
 
@@ -136,12 +145,13 @@ func CreateChat(w http.ResponseWriter, req *http.Request) {
 	createdAt := time.Now()
 
 	chat := Chat{
-		CreatedAt: createdAt,
+		CreatedAt: GetMilliTime(createdAt),
 		Question:  question,
 	}
-	chatData[key] = chat
+	if _, present := GChatData[key]; !present {
+		GChatData[key] = chat
+	}
 
-	// don't overwrite?
 	w.Write([]byte(key))
 	return
 }
@@ -149,7 +159,7 @@ func CreateChat(w http.ResponseWriter, req *http.Request) {
 func GetChat(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	key := vars["key"]
-	chat := chatData[key]
+	chat := GChatData[key]
 	if key == "" {
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte("404 not found"))
@@ -165,7 +175,7 @@ func GetChat(w http.ResponseWriter, req *http.Request) {
 
 func GetChats(w http.ResponseWriter, req *http.Request) {
 	output := []ChatMeta{}
-	for key, chat := range chatData {
+	for key, chat := range GChatData {
 		noMessageChat := ChatMeta{
 			Question:     chat.Question,
 			CreatedAt:    chat.CreatedAt,
@@ -181,35 +191,95 @@ func GetChats(w http.ResponseWriter, req *http.Request) {
 	w.Write(jsonBytes)
 }
 
-var chat pubsub.Publisher
+func CreateMessage(w http.ResponseWriter, req *http.Request) {
 
-func echoHandler(session sockjs.Session) {
-	log.Println("new sockjs session established")
-	var closedSession = make(chan struct{})
-	chat.Publish("[info] new participant joined chat")
-	defer chat.Publish("[info] participant left chat")
-	go func() {
-		reader, _ := chat.SubChannel(nil)
-		for {
-			select {
-			case <-closedSession:
-				return
-			case msg := <-reader:
-				fmt.Println(msg)
-				if err := session.Send(msg.(string)); err != nil {
-					return
-				}
-			}
+	vars := mux.Vars(req)
+	key := vars["key"]
 
-		}
-	}()
-	for {
-		if msg, err := session.Recv(); err == nil {
-			chat.Publish(msg)
-			continue
-		}
-		break
+	if key == "" {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("404 not found"))
+		return
 	}
-	close(closedSession)
-	log.Println("sockjs session closed")
+
+	messageContent := req.FormValue("message")
+	color := req.FormValue("color")
+
+	// TODO validate color and content
+
+	message := Message{
+		Body:      messageContent,
+		Color:     color,
+		CreatedAt: GetMilliTime(time.Now()),
+	}
+
+	// ####### OFF TO THE RACE CONDITIONS #######
+	data := GChatData[key]
+	data.Messages = append(data.Messages, message)
+	GChatData[key] = data
+	// ##########################################
+
+	for _, listener := range GListeners {
+		if listener.ListeningTo == key {
+			listener.Channel <- message
+		}
+	}
+
+	w.Write([]byte("OK"))
+	return
+}
+
+func ChatListen(w http.ResponseWriter, req *http.Request) {
+
+	vars := mux.Vars(req)
+	key := vars["key"]
+	chat := GChatData[key]
+
+	if chat.CreatedAt == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("404 not found"))
+		return
+	}
+
+	latestString := req.FormValue("latest")
+	latest, _ := strconv.ParseInt(latestString, 10, 64)
+
+	if latest == 0 {
+		latest = GetMilliTime(time.Now())
+	}
+
+	// TODO validate all the things
+
+	var messages []Message
+
+	fmt.Println(messages)
+
+	// check if there are any messages this user needs
+	for _, message := range GChatData[key].Messages {
+		if message.CreatedAt > latest {
+			messages = append(messages, message)
+		}
+	}
+	if len(messages) == 0 {
+		// no messages? wait for some
+		channel := make(chan Message)
+		timeNano := time.Now().UnixNano()
+
+		GListeners[timeNano] = Listener{
+			ListeningTo: key,
+			Channel:     channel,
+		}
+		// wait for a new message
+		newMessage := <-channel
+		messages = append(messages, newMessage)
+
+		delete(GListeners, timeNano)
+	}
+
+	messagesBytes, err := json.Marshal(messages)
+	if err != nil {
+		log.Fatal(err)
+	}
+	w.Write(messagesBytes)
+
 }
