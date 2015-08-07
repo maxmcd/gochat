@@ -2,6 +2,7 @@ api/data.json
 node_modules
 .sass-cache
 /app/dist
+.DS_Store
 
 
 ######################################################################
