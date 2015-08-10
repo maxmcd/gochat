@@ -186,7 +186,7 @@ class CH.Chat
 
 	createMessage: (obj) =>
 		"""
-			<div class="message">
+			<div class="message" data-ts="#{obj.created_at}">
 				<div class="avatar"></div>
 				#{CH.Tools.escape obj.body}
 			</div>
@@ -210,6 +210,8 @@ class CH.Chat
 		@poll = $.ajax
 			url: "http://localhost:8001/listen/#{location}/"
 			dataType: 'json'
+			data:
+				latest: $('.message').last().data('ts')
 			success: (messages) =>
 				@addMessage(message) for message in messages
 				@listenForMessages()
@@ -254,6 +256,3 @@ class CH.Chat
 		@input.val('')
 		@submitMessage(q)
 
-
-$ ->
-	new CH.App()

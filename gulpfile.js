@@ -4,7 +4,16 @@ var gulp = require('gulp');
     browserSync = require('browser-sync'),
     reload = browserSync.reload,
     coffee = require('gulp-coffee'),
-    ghPages = require('gulp-gh-pages');
+    ghPages = require('gulp-gh-pages'),
+    react = require('gulp-react');
+ 
+gulp.task('jsx', function () {
+    return gulp.src('app/jsx/*.jsx')
+        .pipe(react({harmony: true}))
+        .on('error', console.log)
+        .pipe(gulp.dest('app/dist/js'))
+        .pipe(reload({ stream:true }));
+});
  
 gulp.task('deploy', function() {
   return gulp.src('app/dist/**/*')
@@ -15,14 +24,6 @@ gulp.task('sass', function() {
   	return sass('app/sass/style.sass')
     	.pipe(gulp.dest('app/dist/css'))
     	.pipe(reload({ stream:true }));
-});
-
-gulp.task('coffee', function() {
-    gulp.src('app/coffee/*.coffee')
-        .pipe(coffee({bare: true}))
-        .on('error', console.log)
-        .pipe(gulp.dest('app/dist/js'))
-        .pipe(reload({ stream:true }));
 });
 
 gulp.task('vendor', function() {
@@ -38,7 +39,7 @@ gulp.task('move-files', function() {
 })
 
 // watch Sass files for changes, run the Sass preprocessor with the 'sass' task and reload
-gulp.task('serve', ['move-files','sass', 'coffee', 'vendor'], function() {
+gulp.task('serve', ['move-files','sass', 'jsx', 'vendor'], function() {
   	browserSync({
     	server: {
       		baseDir: 'app/dist'
@@ -47,7 +48,7 @@ gulp.task('serve', ['move-files','sass', 'coffee', 'vendor'], function() {
 
 	gulp.watch(['app/*'], ['move-files', reload]);
 	gulp.watch('app/sass/*.sass', ['sass']);
-    gulp.watch('app/coffee/*', ['coffee']);
+    gulp.watch('app/jsx/*', ['jsx']);
     gulp.watch('app/js/*.js', ['vendor']);
 });
 
