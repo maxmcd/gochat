@@ -21,12 +21,14 @@ import (
 type Chat struct {
 	CreatedAt int64     `json:"created_at"`
 	Question  string    `json:"question"`
+	Color     string    `json:"color"`
 	Messages  []Message `json:"messages"`
 }
 
 type ChatMeta struct {
 	CreatedAt    int64  `json:"created_at"`
 	Question     string `json:"question"`
+	Color        string `json:"color"`
 	MessageCount int    `json:"message_count"`
 	Key          string `json:"key"`
 }
@@ -134,6 +136,8 @@ func Middleware(h http.Handler) http.Handler {
 
 func CreateChat(w http.ResponseWriter, req *http.Request) {
 	question := req.FormValue("question")
+	color := req.FormValue("color")
+
 	if question == "" {
 		w.WriteHeader(400)
 		w.Write([]byte("params not present"))
@@ -147,7 +151,9 @@ func CreateChat(w http.ResponseWriter, req *http.Request) {
 	chat := Chat{
 		CreatedAt: GetMilliTime(createdAt),
 		Question:  question,
+		Color:     color,
 	}
+
 	if _, present := GChatData[key]; !present {
 		GChatData[key] = chat
 	}

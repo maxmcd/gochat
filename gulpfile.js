@@ -10,7 +10,8 @@ var gulp = require('gulp');
 gulp.task('jsx', function () {
     return gulp.src('app/jsx/*.jsx')
         .pipe(react({harmony: true}))
-        .on('error', console.log)
+        .on('error', console.log.bind(console))
+        .pipe(concat('app.js'))
         .pipe(gulp.dest('app/dist/js'))
         .pipe(reload({ stream:true }));
 });

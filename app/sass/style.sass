@@ -64,7 +64,7 @@ input
     left: 20px
     width: 10px
     height: 10px
-    background: green
+    background: $color
     border-radius: $space
 
 .content 
@@ -97,23 +97,18 @@ input
 .header 
     width: 180px
     display: block
-    .back-arrow
-        display: none
 
-    &.back
-        .avatar
-            display: none
-        .back-arrow
-            display: block
-            &:after
-                content: '<'
-                content: '\276e'
-                content: '\21a9'
-                // this is not an override
-                // this is just a tribute
-                position: absolute
-                left: 15px
-                top: 18px
+    .back-arrow
+        display: block
+        &:after
+            content: '<'
+            content: '\276e'
+            content: '\21a9'
+            // this is not an override
+            // this is just a tribute
+            position: absolute
+            left: 15px
+            top: 18px
 
     .avatar
         background: $color
