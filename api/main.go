@@ -187,6 +187,7 @@ func GetChats(w http.ResponseWriter, req *http.Request) {
 			CreatedAt:    chat.CreatedAt,
 			MessageCount: len(chat.Messages),
 			Key:          key,
+			Color:        chat.Color,
 		}
 		output = append(output, noMessageChat)
 	}

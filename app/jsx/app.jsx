@@ -1,4 +1,17 @@
 var Input = React.createClass({
+	componentDidMount: function() {
+		$('.question').focus()
+	},
+	handleSubmit: function(e) {
+		e.preventDefault()
+		node = React.findDOMNode(
+			this.refs.whereTypingHappens
+		)
+		this.props.handleSubmit(
+			node.value
+		)
+		node.value = ""
+	},
 	render: function() {
 		var avatarStyle = {
 			backgroundColor: this.props.color
@@ -6,10 +19,11 @@ var Input = React.createClass({
 		return (
 			<div>
 				<div className="input">
-					<form action="#">
+					<form action="#" onSubmit={this.handleSubmit}>
 						<div className="avatar"
 							style={avatarStyle}></div>
 						<input 
+							ref="whereTypingHappens"
 							type="text" 
 							className="question" 
 							placeholder={this.props.placeholder} autofocus />
@@ -38,6 +52,7 @@ var Message = React.createClass({
 var Question = React.createClass({
 	componentDidMount: function() {
 		this.props.getData()
+		this.props.poll()
 	},
 	createMessage: function(message, index) {
 		return (
@@ -59,6 +74,7 @@ var Question = React.createClass({
 				</div>            
 				{this.props.chat.messages.map(this.createMessage)}
 				<Input 
+					handleSubmit={this.props.handleSubmit}
 					color={this.props.color}
 				/>
 			</div>
@@ -74,7 +90,7 @@ var QuestionLink = React.createClass({
 		}
 		return (
 			<a href={key} key={this.props.index} className="blob">
-				<div className="avatar"></div>
+				<div className="avatar" style={style}></div>
 				{this.props.question.question}
 			</a>            			
 		)
@@ -95,6 +111,7 @@ var Home = React.createClass({
 			<div>
 				<Input 
 					placeholder="ask your question..."
+					handleSubmit={this.props.handleSubmit}
 					color={this.props.color}
 				/>
 				{this.props.questions.map(this.createQuestion)}
@@ -150,6 +167,72 @@ var Canvas = React.createClass({
 			} 
 		})
 	},
+	poll: function(location) {
+		var latest = 1
+		var messages = this.state.chat.messages
+		if (messages.length > 0) {
+			latest = messages[messages.length-1].created_at
+		}
+		$.ajax({
+			url: "http://localhost:8001/listen/"+this.state.location+"/",
+			dataType: "json",
+			data: {
+				latest: latest
+			},
+			success: function(messages) {
+				if (location == this.state.location) {
+					this.state.chat.messages = this.state.chat.messages.concat(messages)
+					this.setState({chat: this.state.chat})
+					// hmmmmmmmm
+					// racey?					
+				}
+				if (this.state.location !== "") {
+					window.setTimeout(function() {
+						this.poll(this.state.location)
+					}.bind(this), 300)
+				}
+			}.bind(this),
+			error: function() {
+				window.setTimeout(function() {
+					this.poll(this.state.location)
+				}.bind(this), 1000)
+			}.bind(this)
+		})
+	},
+	writeQuestion: function(question) {
+		$.ajax({
+			url: 'http://localhost:8001/chats/',
+			type: 'post',
+			data: {
+				question: question,
+				color: this.state.color
+			},
+			success: function(data) {
+				window.location = "#" + data
+			},
+			error: function(data) {
+				console.log(data)
+			}
+		})
+	},
+	writeMessage: function(message) {
+		if (this.state.chat.question !== null) {
+			$.ajax({
+				url: "http://localhost:8001/chat/" + this.state.location + "/",
+				type: 'post',
+				data: {
+					color: this.state.color,
+					message: message
+				},
+				success: function(data) {
+					console.log(data)
+				},
+				error: function(data) {
+					console.log(data)
+				}
+			})
+		}
+	},
 	getQuestions: function() {
 		// clear chat when you go back home
 		// so that it doesn't render
@@ -173,14 +256,17 @@ var Canvas = React.createClass({
 				<Home 
 					questions={this.state.questions} 
 					getData={this.getQuestions}
+					handleSubmit={this.writeQuestion}
 					color={this.state.color}
 				/>
 			)
 		} else {
 			return (
 				<Question
+					poll={this.poll}
 					chat={this.state.chat} 
 					getData={this.getChat}
+					handleSubmit={this.writeMessage}
 					questions={this.state.questions}
 					color={this.state.color}
 				/>
@@ -195,6 +281,7 @@ var Canvas = React.createClass({
 		}
 	},
 	render: function() {
+		console.log(this.state)
 		return (
 			<div>
 		        <a href="#" className="header blob">		            
