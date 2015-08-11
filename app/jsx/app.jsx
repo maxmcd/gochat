@@ -138,6 +138,14 @@ var Canvas = React.createClass({
 			this.setState({location: this.getLocation()})
 		}.bind(this)
 	},
+	getServer: function() {
+		// bad
+		if (document.location.origin[7] == 'l') {
+			return "http://l:8001/"
+		} else {
+			return "http://104.236.119.243:8001/"
+		}
+	},
 	getInitialState: function() {
 		this.attachEventHandlers()
 		return {
@@ -148,12 +156,13 @@ var Canvas = React.createClass({
 				messages: []
 			},
 			questions: [],
-			location: this.getLocation()
+			location: this.getLocation(),
+			server: this.getServer()
 		}
 	},
 	getChat: function() {
 		$.ajax({
-			url: "http://localhost:8001/chat/" + this.state.location + "/",
+			url: this.state.server+"chat/" + this.state.location + "/",
 			dataType: 'json',
 			success: function(chat) {
 				if (chat.messages == null){
@@ -174,7 +183,7 @@ var Canvas = React.createClass({
 			latest = messages[messages.length-1].created_at
 		}
 		$.ajax({
-			url: "http://localhost:8001/listen/"+this.state.location+"/",
+			url: this.state.server+"listen/"+this.state.location+"/",
 			dataType: "json",
 			data: {
 				latest: latest
@@ -201,7 +210,7 @@ var Canvas = React.createClass({
 	},
 	writeQuestion: function(question) {
 		$.ajax({
-			url: 'http://localhost:8001/chats/',
+			url: this.state.server+'chats/',
 			type: 'post',
 			data: {
 				question: question,
@@ -218,7 +227,7 @@ var Canvas = React.createClass({
 	writeMessage: function(message) {
 		if (this.state.chat.question !== null) {
 			$.ajax({
-				url: "http://localhost:8001/chat/" + this.state.location + "/",
+				url: this.state.server+"chat/" + this.state.location + "/",
 				type: 'post',
 				data: {
 					color: this.state.color,
@@ -243,7 +252,7 @@ var Canvas = React.createClass({
 			messages: []
 		}})
 		$.ajax({
-			url: 'http://localhost:8001/chats/',
+			url: this.state.server+'chats/',
 			dataType: 'json',
 			success: function(questions) {
 				this.setState({questions: questions})
