@@ -53,7 +53,7 @@ input[type=text] {
   left: 20px;
   width: 10px;
   height: 10px;
-  background: green;
+  background: #402CA7;
   border-radius: 15px; }
 
 .content {
@@ -85,12 +85,8 @@ input[type=text] {
   width: 180px;
   display: block; }
   .header .back-arrow {
-    display: none; }
-  .header.back .avatar {
-    display: none; }
-  .header.back .back-arrow {
     display: block; }
-    .header.back .back-arrow:after {
+    .header .back-arrow:after {
       content: "<";
       content: "❮";
       content: "↩";
